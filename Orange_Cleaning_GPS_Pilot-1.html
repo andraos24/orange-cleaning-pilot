@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cleaning Attendance — Orange Branch</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f5f6f8;margin:0;padding:20px;color:#17202a}
+.card{max-width:520px;margin:auto;background:white;border-radius:16px;padding:24px;box-shadow:0 4px 18px #0001}
+h1{font-size:22px;margin:0 0 6px} .muted{color:#667085;font-size:14px}
+label{display:block;font-weight:600;margin:18px 0 7px}
+input,select,textarea,button{width:100%;box-sizing:border-box;padding:13px;border:1px solid #d0d5dd;border-radius:9px;font-size:16px}
+button{background:#1463d6;color:white;border:0;font-weight:700;margin-top:18px}
+button:disabled{background:#98a2b3}
+.status{padding:14px;border-radius:10px;margin-top:16px;background:#f2f4f7}
+.ok{background:#ecfdf3;color:#027a48}.warn{background:#fffaeb;color:#b54708}.bad{background:#fef3f2;color:#b42318}
+.small{font-size:12px;color:#667085;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>Cleaning Attendance</h1>
+<div class="muted">Orange Branch — 205 Summer St, Orange NSW 2800</div>
+
+<label for="name">Cleaner name</label>
+<input id="name" placeholder="Enter your name" autocomplete="name">
+
+<label for="done">Cleaning completed?</label>
+<select id="done"><option value="">Select</option><option>Yes</option><option>No</option></select>
+
+<label for="issue">Any issue at the branch?</label>
+<textarea id="issue" rows="3" placeholder="Leave blank if there are no issues"></textarea>
+
+<button id="locate">1. Check my location</button>
+<div id="status" class="status">Location has not been checked.</div>
+
+<button id="submit" disabled>2. Submit cleaning confirmation</button>
+<div class="small">Your phone's location permission must be enabled. GPS can be less accurate near buildings, so this pilot records the actual distance rather than silently rejecting the submission.</div>
+</div>
+
+<script>
+const BRANCH = {lat:-33.2832, lon:149.1010, radius:100};
+let gps=null;
+
+function distanceMeters(lat1,lon1,lat2,lon2){
+ const R=6371000, p=Math.PI/180;
+ const a=Math.sin((lat2-lat1)*p/2)**2+
+ Math.cos(lat1*p)*Math.cos(lat2*p)*Math.sin((lon2-lon1)*p/2)**2;
+ return 2*R*Math.asin(Math.sqrt(a));
+}
+function show(msg,cls="status"){const e=document.getElementById("status");e.className="status "+cls;e.innerHTML=msg}
+
+document.getElementById("locate").onclick=()=>{
+ show("Requesting GPS location…");
+ navigator.geolocation.getCurrentPosition(pos=>{
+   const lat=pos.coords.latitude, lon=pos.coords.longitude;
+   const accuracy=Math.round(pos.coords.accuracy);
+   const d=Math.round(distanceMeters(lat,lon,BRANCH.lat,BRANCH.lon));
+   gps={lat,lon,accuracy,d,time:new Date().toISOString()};
+   let cls=d<=100?"ok":d<=250?"warn":"bad";
+   let label=d<=100?"LOCATION VERIFIED":d<=250?"LOCATION — REVIEW":"LOCATION OUTSIDE RADIUS";
+   show(`<strong>${label}</strong><br>Distance from branch: ${d} m<br>GPS accuracy reported by phone: ±${accuracy} m`,cls);
+   document.getElementById("submit").disabled=false;
+ },err=>{
+   show("GPS could not be obtained. Check Location Services and allow this website to use your location. Error: "+err.message,"bad");
+ },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+};
+
+document.getElementById("submit").onclick=()=>{
+ const name=document.getElementById("name").value.trim();
+ const done=document.getElementById("done").value;
+ if(!name||!done||!gps){alert("Please enter your name, confirm cleaning, and check your location.");return}
+ const record={
+   branchId:"ORANGE-001",
+   branch:"Orange",
+   address:"205 Summer St, Orange NSW 2800",
+   cleaner:name,
+   cleaningCompleted:done,
+   issue:document.getElementById("issue").value.trim(),
+   timestamp:new Date().toISOString(),
+   latitude:gps.lat, longitude:gps.lon,
+   gpsAccuracyMetres:gps.accuracy,
+   distanceMetres:gps.d,
+   locationStatus:gps.d<=100?"Verified":gps.d<=250?"Review":"Outside radius"
+ };
+ alert("Pilot submission captured on this device.\n\n"+JSON.stringify(record,null,2));
+ console.log(record);
+};
+</script>
+</body>
+</html>
